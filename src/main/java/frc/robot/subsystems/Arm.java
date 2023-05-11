@@ -24,9 +24,11 @@ public class Arm extends SubsystemBase {
     private double pid_dT = Constants.PID_DT_ARM;
     double pidInput3;
     double pidOutput3;
-    double default_P = 0.06;
+    double default_P = 0.2;
     double default_D = 0.001;
     double default_I = 0.00;
+    double pidInPipe[];
+    final int PIPESIZE = 3;
 
 
     private final Servo servo1;
@@ -72,8 +74,8 @@ public class Arm extends SubsystemBase {
 
     private final NetworkTableEntry D_posX = tab.add("posX", 0).getEntry();
     private final NetworkTableEntry D_posY = tab.add("posY", 0).getEntry();
-    private final NetworkTableEntry D_slider_P = tab.add("pid P", default_P).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", 0.01, "max", 0.2)) .getEntry();
-    private final NetworkTableEntry D_slider_D = tab.add("pid D", default_D).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", 0.0, "max", 0.01)) .getEntry();
+    private final NetworkTableEntry D_slider_P = tab.add("pid P", default_P).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", 0.01, "max", 0.4)) .getEntry();
+    private final NetworkTableEntry D_slider_D = tab.add("pid D", default_D).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", 0.0, "max", 0.1)) .getEntry();
     private final NetworkTableEntry D_slider_I = tab.add("pid I", default_I).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", 0.0, "max", 0.01)) .getEntry();
     private final NetworkTableEntry D_sliderX = tab.add("setX", default_x).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", 0.05, "max", 0.5)) .getEntry();
     private final NetworkTableEntry D_sliderY = tab.add("setY", default_y).withWidget(BuiltInWidgets.kNumberSlider).withProperties(Map.of("min", -0.2, "max", 0.5)) .getEntry();
@@ -91,6 +93,8 @@ public class Arm extends SubsystemBase {
         encoder3.reset();
 
         pidController3 = new PIDController(default_P,default_I,default_D, pid_dT); 
+
+        pidInPipe = new double[PIPESIZE];
         // pidController3.setIntegratorRange(-0.2, 0.2);
 
         servo1 = new Servo(Constants.SERVO_1);  //elbow
@@ -278,6 +282,7 @@ public class Arm extends SubsystemBase {
         m_B = (Math.toDegrees(m_B) ); 
 
         pidInput3 = (m_A - offset0);
+        pidInPipe[PIPESIZE-1] = pidInput3;
         servo1.setAngle(m_B*ratio1 + offset1);    //
 
         //D_debug1.setDouble(A);
@@ -303,9 +308,14 @@ public class Arm extends SubsystemBase {
     @Override
     public void periodic()
     {
-        if (!Constants.PID_THREAD_ARM )
-            pidOutput3 = pidController3.calculate(-encoder3.getDistance()/ratio0, pidInput3);
+        if (!Constants.PID_THREAD_ARM ) {
+            double in = pidInPipe[0];
+            for (int i=0; i<PIPESIZE-1; i++) {
+                pidInPipe[i] = pidInPipe[i+1];
+            }
+            pidOutput3 = pidController3.calculate(-encoder3.getDistance()/ratio0, in);
         // pidOutput3 = pidController3.calculate(encoder3.getEncoderDistance(), pidInput3);
+        }
         motor3.set(pidOutput3);
         offset0 = D_offset0.getDouble(offset0);
         offset1 = D_offset1.getDouble(offset1);
